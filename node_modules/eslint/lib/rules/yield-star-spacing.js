@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to check the spacing around the * in yield* expressions.
  * @author Bryan Smith
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -9,13 +10,17 @@
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "require or disallow spacing around the `*` in `yield*` expressions",
-            category: "ECMAScript 6",
+            description: "Require or disallow spacing around the `*` in `yield*` expressions",
             recommended: false,
-            url: "https://eslint.org/docs/rules/yield-star-spacing"
+            url: "https://eslint.org/docs/latest/rules/yield-star-spacing"
         },
 
         fixable: "whitespace",
@@ -36,11 +41,17 @@ module.exports = {
                     }
                 ]
             }
-        ]
+        ],
+        messages: {
+            missingBefore: "Missing space before *.",
+            missingAfter: "Missing space after *.",
+            unexpectedBefore: "Unexpected space before *.",
+            unexpectedAfter: "Unexpected space after *."
+        }
     },
 
     create(context) {
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         const mode = (function(option) {
             if (!option || typeof option === "string") {
@@ -68,16 +79,17 @@ module.exports = {
                 const after = leftToken.value === "*";
                 const spaceRequired = mode[side];
                 const node = after ? leftToken : rightToken;
-                const type = spaceRequired ? "Missing" : "Unexpected";
-                const message = "{{type}} space {{side}} *.";
+                let messageId = "";
+
+                if (spaceRequired) {
+                    messageId = side === "before" ? "missingBefore" : "missingAfter";
+                } else {
+                    messageId = side === "before" ? "unexpectedBefore" : "unexpectedAfter";
+                }
 
                 context.report({
                     node,
-                    message,
-                    data: {
-                        type,
-                        side
-                    },
+                    messageId,
                     fix(fixer) {
                         if (spaceRequired) {
                             if (after) {

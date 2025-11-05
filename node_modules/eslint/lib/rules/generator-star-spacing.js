@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to check the spacing around the * in generator functions.
  * @author Jamund Ferguson
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -25,13 +26,17 @@ const OVERRIDE_SCHEMA = {
     ]
 };
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce consistent spacing around `*` operators in generator functions",
-            category: "ECMAScript 6",
+            description: "Enforce consistent spacing around `*` operators in generator functions",
             recommended: false,
-            url: "https://eslint.org/docs/rules/generator-star-spacing"
+            url: "https://eslint.org/docs/latest/rules/generator-star-spacing"
         },
 
         fixable: "whitespace",
@@ -55,7 +60,14 @@ module.exports = {
                     }
                 ]
             }
-        ]
+        ],
+
+        messages: {
+            missingBefore: "Missing space before *.",
+            missingAfter: "Missing space after *.",
+            unexpectedBefore: "Unexpected space before *.",
+            unexpectedAfter: "Unexpected space after *."
+        }
     },
 
     create(context) {
@@ -69,9 +81,8 @@ module.exports = {
 
         /**
          * Returns resolved option definitions based on an option and defaults
-         *
-         * @param {any} option - The option object or string value
-         * @param {Object} defaults - The defaults to use if options are not present
+         * @param {any} option The option object or string value
+         * @param {Object} defaults The defaults to use if options are not present
          * @returns {Object} the resolved object definition
          */
         function optionToDefinition(option, defaults) {
@@ -94,12 +105,11 @@ module.exports = {
             };
         }(context.options[0] || {}));
 
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         /**
          * Checks if the given token is a star token or not.
-         *
-         * @param {Token} token - The token to check.
+         * @param {Token} token The token to check.
          * @returns {boolean} `true` if the token is a star token.
          */
         function isStarToken(token) {
@@ -108,8 +118,7 @@ module.exports = {
 
         /**
          * Gets the generator star token of the given function node.
-         *
-         * @param {ASTNode} node - The function node to get.
+         * @param {ASTNode} node The function node to get.
          * @returns {Token} Found star token.
          */
         function getStarToken(node) {
@@ -120,8 +129,16 @@ module.exports = {
         }
 
         /**
+         * capitalize a given string.
+         * @param {string} str the given string.
+         * @returns {string} the capitalized string.
+         */
+        function capitalize(str) {
+            return str[0].toUpperCase() + str.slice(1);
+        }
+
+        /**
          * Checks the spacing between two tokens before or after the star token.
-         *
          * @param {string} kind Either "named", "anonymous", or "method"
          * @param {string} side Either "before" or "after".
          * @param {Token} leftToken `function` keyword token if side is "before", or
@@ -135,17 +152,11 @@ module.exports = {
                 const after = leftToken.value === "*";
                 const spaceRequired = modes[kind][side];
                 const node = after ? leftToken : rightToken;
-                const type = spaceRequired ? "Missing" : "Unexpected";
-                const message = "{{type}} space {{side}} *.";
-                const data = {
-                    type,
-                    side
-                };
+                const messageId = `${spaceRequired ? "missing" : "unexpected"}${capitalize(side)}`;
 
                 context.report({
                     node,
-                    message,
-                    data,
+                    messageId,
                     fix(fixer) {
                         if (spaceRequired) {
                             if (after) {
@@ -161,7 +172,6 @@ module.exports = {
 
         /**
          * Enforces the spacing around the star if node is a generator function.
-         *
          * @param {ASTNode} node A function expression or declaration node.
          * @returns {void}
          */

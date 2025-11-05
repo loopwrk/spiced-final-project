@@ -1,3 +1,4 @@
-var $isNaN = Number.isNaN || function (a) { return a !== a; };
+'use strict';
 
-module.exports = Number.isFinite || function (x) { return typeof x === 'number' && !$isNaN(x) && x !== Infinity && x !== -Infinity; };
+// TODO, semver-major: delete
+module.exports = require('math-intrinsics/isFinite');

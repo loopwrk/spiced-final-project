@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to validate spacing before function paren.
  * @author Mathias Schreck <https://github.com/lo1tuma>
+ * @deprecated in ESLint v8.53.0
  */
 "use strict";
 
@@ -8,19 +9,23 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce consistent spacing before `function` definition opening parenthesis",
-            category: "Stylistic Issues",
+            description: "Enforce consistent spacing before `function` definition opening parenthesis",
             recommended: false,
-            url: "https://eslint.org/docs/rules/space-before-function-paren"
+            url: "https://eslint.org/docs/latest/rules/space-before-function-paren"
         },
 
         fixable: "whitespace",
@@ -48,11 +53,16 @@ module.exports = {
                     }
                 ]
             }
-        ]
+        ],
+
+        messages: {
+            unexpectedSpace: "Unexpected space before function parentheses.",
+            missingSpace: "Missing space before function parentheses."
+        }
     },
 
     create(context) {
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
         const baseConfig = typeof context.options[0] === "string" ? context.options[0] : "always";
         const overrideConfig = typeof context.options[0] === "object" ? context.options[0] : {};
 
@@ -120,15 +130,29 @@ module.exports = {
             if (hasSpacing && functionConfig === "never") {
                 context.report({
                     node,
-                    loc: leftToken.loc.end,
-                    message: "Unexpected space before function parentheses.",
-                    fix: fixer => fixer.removeRange([leftToken.range[1], rightToken.range[0]])
+                    loc: {
+                        start: leftToken.loc.end,
+                        end: rightToken.loc.start
+                    },
+                    messageId: "unexpectedSpace",
+                    fix(fixer) {
+                        const comments = sourceCode.getCommentsBefore(rightToken);
+
+                        // Don't fix anything if there's a single line comment between the left and the right token
+                        if (comments.some(comment => comment.type === "Line")) {
+                            return null;
+                        }
+                        return fixer.replaceTextRange(
+                            [leftToken.range[1], rightToken.range[0]],
+                            comments.reduce((text, comment) => text + sourceCode.getText(comment), "")
+                        );
+                    }
                 });
             } else if (!hasSpacing && functionConfig === "always") {
                 context.report({
                     node,
-                    loc: leftToken.loc.end,
-                    message: "Missing space before function parentheses.",
+                    loc: rightToken.loc,
+                    messageId: "missingSpace",
                     fix: fixer => fixer.insertTextAfter(leftToken, " ")
                 });
             }

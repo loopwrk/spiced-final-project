@@ -6,22 +6,36 @@
 "use strict";
 
 //------------------------------------------------------------------------------
+// Requirements
+//------------------------------------------------------------------------------
+
+const { getStaticValue } = require("@eslint-community/eslint-utils");
+
+//------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        type: "problem",
+
         docs: {
-            description: "enforce \"for\" loop update clause moving the counter in the right direction.",
-            category: "Possible Errors",
-            recommended: false,
-            url: "https://eslint.org/docs/rules/for-direction"
+            description: "Enforce \"for\" loop update clause moving the counter in the right direction",
+            recommended: true,
+            url: "https://eslint.org/docs/latest/rules/for-direction"
         },
+
         fixable: null,
-        schema: []
+        schema: [],
+
+        messages: {
+            incorrectDirection: "The update clause in this loop moves the variable in the wrong direction."
+        }
     },
 
     create(context) {
+        const { sourceCode } = context;
 
         /**
          * report an error.
@@ -31,8 +45,25 @@ module.exports = {
         function report(node) {
             context.report({
                 node,
-                message: "The update clause in this loop moves the variable in the wrong direction."
+                messageId: "incorrectDirection"
             });
+        }
+
+        /**
+         * check the right side of the assignment
+         * @param {ASTNode} update UpdateExpression to check
+         * @param {int} dir expected direction that could either be turned around or invalidated
+         * @returns {int} return dir, the negated dir, or zero if the counter does not change or the direction is not clear
+         */
+        function getRightDirection(update, dir) {
+            const staticValue = getStaticValue(update.right, sourceCode.getScope(update));
+
+            if (staticValue && ["bigint", "boolean", "number"].includes(typeof staticValue.value)) {
+                const sign = Math.sign(Number(staticValue.value)) || 0; // convert NaN to 0
+
+                return dir * sign;
+            }
+            return 0;
         }
 
         /**
@@ -62,40 +93,43 @@ module.exports = {
         function getAssignmentDirection(update, counter) {
             if (update.left.name === counter) {
                 if (update.operator === "+=") {
-                    return 1;
+                    return getRightDirection(update, 1);
                 }
                 if (update.operator === "-=") {
-                    return -1;
+                    return getRightDirection(update, -1);
                 }
             }
             return 0;
         }
+
         return {
             ForStatement(node) {
 
-                if (node.test && node.test.type === "BinaryExpression" && node.test.left.type === "Identifier" && node.update) {
-                    const counter = node.test.left.name;
-                    const operator = node.test.operator;
-                    const update = node.update;
-
-                    if (operator === "<" || operator === "<=") {
-
-                        // report error if update sub the counter (--, -=)
-                        if (update.type === "UpdateExpression" && getUpdateDirection(update, counter) < 0) {
-                            report(node);
+                if (node.test && node.test.type === "BinaryExpression" && node.update) {
+                    for (const counterPosition of ["left", "right"]) {
+                        if (node.test[counterPosition].type !== "Identifier") {
+                            continue;
                         }
 
-                        if (update.type === "AssignmentExpression" && getAssignmentDirection(update, counter) < 0) {
-                            report(node);
-                        }
-                    } else if (operator === ">" || operator === ">=") {
+                        const counter = node.test[counterPosition].name;
+                        const operator = node.test.operator;
+                        const update = node.update;
 
-                        // report error if update add the counter (++, +=)
-                        if (update.type === "UpdateExpression" && getUpdateDirection(update, counter) > 0) {
-                            report(node);
+                        let wrongDirection;
+
+                        if (operator === "<" || operator === "<=") {
+                            wrongDirection = counterPosition === "left" ? -1 : 1;
+                        } else if (operator === ">" || operator === ">=") {
+                            wrongDirection = counterPosition === "left" ? 1 : -1;
+                        } else {
+                            return;
                         }
 
-                        if (update.type === "AssignmentExpression" && getAssignmentDirection(update, counter) > 0) {
+                        if (update.type === "UpdateExpression") {
+                            if (getUpdateDirection(update, counter) === wrongDirection) {
+                                report(node);
+                            }
+                        } else if (update.type === "AssignmentExpression" && getAssignmentDirection(update, counter) === wrongDirection) {
                             report(node);
                         }
                     }

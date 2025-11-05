@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to flag use of a leading/trailing decimal point in a numeric literal
  * @author James Allardice
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -9,28 +10,35 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "suggestion",
+
         docs: {
-            description: "disallow leading or trailing decimal points in numeric literals",
-            category: "Best Practices",
+            description: "Disallow leading or trailing decimal points in numeric literals",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-floating-decimal"
+            url: "https://eslint.org/docs/latest/rules/no-floating-decimal"
         },
 
         schema: [],
-
-        fixable: "code"
+        fixable: "code",
+        messages: {
+            leading: "A leading decimal point can be confused with a dot.",
+            trailing: "A trailing decimal point can be confused with a dot."
+        }
     },
 
     create(context) {
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         return {
             Literal(node) {
@@ -39,7 +47,7 @@ module.exports = {
                     if (node.raw.startsWith(".")) {
                         context.report({
                             node,
-                            message: "A leading decimal point can be confused with a dot.",
+                            messageId: "leading",
                             fix(fixer) {
                                 const tokenBefore = sourceCode.getTokenBefore(node);
                                 const needsSpaceBefore = tokenBefore &&
@@ -53,7 +61,7 @@ module.exports = {
                     if (node.raw.indexOf(".") === node.raw.length - 1) {
                         context.report({
                             node,
-                            message: "A trailing decimal point can be confused with a dot.",
+                            messageId: "trailing",
                             fix: fixer => fixer.insertTextAfter(node, "0")
                         });
                     }

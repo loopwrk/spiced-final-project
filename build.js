@@ -1,8 +1,8 @@
 const webpack = require('webpack');
-const UglifyJsPlugin = require('uglifyjs-webpack-plugin')
+const TerserPlugin = require('terser-webpack-plugin');
 
 const conf = {
-    entry: ["@babel/polyfill", __dirname + '/src/start.js'],
+    entry: __dirname + '/src/start.js',
     output: {
         path: __dirname,
         filename: 'bundle.js'
@@ -13,7 +13,7 @@ const conf = {
     mode: require.main == module ? 'production' : 'development',
     optimization: require.main == module ? {
         minimizer: [
-            new UglifyJsPlugin({})
+            new TerserPlugin()
         ]
     } : {},
     module: {
@@ -21,7 +21,7 @@ const conf = {
             {
                 test: /\.js$/,
                 loader: 'babel-loader',
-                query: {
+                options: {
                     presets: ['@babel/preset-react', '@babel/preset-env']
                 }
             }

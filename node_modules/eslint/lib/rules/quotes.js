@@ -1,6 +1,7 @@
 /**
  * @fileoverview A rule to choose between single and double quote marks
  * @author Matt DuVall <http://www.mattduvall.com/>, Brandon Payton
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -9,7 +10,7 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Constants
@@ -34,14 +35,14 @@ const QUOTE_SETTINGS = {
 };
 
 // An unescaped newline is a newline preceded by an even number of backslashes.
-const UNESCAPED_LINEBREAK_PATTERN = new RegExp(String.raw`(^|[^\\])(\\\\)*[${Array.from(astUtils.LINEBREAKS).join("")}]`);
+const UNESCAPED_LINEBREAK_PATTERN = new RegExp(String.raw`(^|[^\\])(\\\\)*[${Array.from(astUtils.LINEBREAKS).join("")}]`, "u");
 
 /**
  * Switches quoting of javascript string between ' " and `
  * escaping and unescaping as necessary.
  * Only escaping of the minimal set of characters is changed.
  * Note: escaping of newlines when switching from backtick to other quotes is not handled.
- * @param {string} str - A string to convert.
+ * @param {string} str A string to convert.
  * @returns {string} The string with changed quotes.
  * @private
  */
@@ -54,7 +55,7 @@ QUOTE_SETTINGS.backtick.convert = function(str) {
     if (newQuote === oldQuote) {
         return str;
     }
-    return newQuote + str.slice(1, -1).replace(/\\(\${|\r\n?|\n|.)|["'`]|\${|(\r\n?|\n)/g, (match, escaped, newline) => {
+    return newQuote + str.slice(1, -1).replace(/\\(\$\{|\r\n?|\n|.)|["'`]|\$\{|(\r\n?|\n)/gu, (match, escaped, newline) => {
         if (escaped === oldQuote || oldQuote === "`" && escaped === "${") {
             return escaped; // unescape
         }
@@ -74,13 +75,17 @@ const AVOID_ESCAPE = "avoid-escape";
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce the consistent use of either backticks, double, or single quotes",
-            category: "Stylistic Issues",
+            description: "Enforce the consistent use of either backticks, double, or single quotes",
             recommended: false,
-            url: "https://eslint.org/docs/rules/quotes"
+            url: "https://eslint.org/docs/latest/rules/quotes"
         },
 
         fixable: "code",
@@ -108,7 +113,11 @@ module.exports = {
                     }
                 ]
             }
-        ]
+        ],
+
+        messages: {
+            wrongQuotes: "Strings must use {{description}}."
+        }
     },
 
     create(context) {
@@ -117,7 +126,7 @@ module.exports = {
             settings = QUOTE_SETTINGS[quoteOption || "double"],
             options = context.options[1],
             allowTemplateLiterals = options && options.allowTemplateLiterals === true,
-            sourceCode = context.getSourceCode();
+            sourceCode = context.sourceCode;
         let avoidEscape = options && options.avoidEscape === true;
 
         // deprecated
@@ -132,6 +141,7 @@ module.exports = {
          *
          * - `<div className="foo"></div>` ... If the literal is an attribute value, the parent of the literal is `JSXAttribute`.
          * - `<div>foo</div>` ... If the literal is a text content, the parent of the literal is `JSXElement`.
+         * - `<>foo</>` ... If the literal is a text content, the parent of the literal is `JSXFragment`.
          *
          * In particular, this function returns `false` in the following cases:
          *
@@ -140,19 +150,19 @@ module.exports = {
          *
          * In both cases, inside of the braces is handled as normal JavaScript.
          * The braces are `JSXExpressionContainer` nodes.
-         *
          * @param {ASTNode} node The Literal node to check.
          * @returns {boolean} True if the node is a part of JSX, false if not.
          * @private
          */
         function isJSXLiteral(node) {
-            return node.parent.type === "JSXAttribute" || node.parent.type === "JSXElement";
+            return node.parent.type === "JSXAttribute" || node.parent.type === "JSXElement" || node.parent.type === "JSXFragment";
         }
 
         /**
          * Checks whether or not a given node is a directive.
-         * The directive is a `ExpressionStatement` which has only a string literal.
-         * @param {ASTNode} node - A node to check.
+         * The directive is a `ExpressionStatement` which has only a string literal not surrounded by
+         * parentheses.
+         * @param {ASTNode} node A node to check.
          * @returns {boolean} Whether or not the node is a directive.
          * @private
          */
@@ -160,23 +170,23 @@ module.exports = {
             return (
                 node.type === "ExpressionStatement" &&
                 node.expression.type === "Literal" &&
-                typeof node.expression.value === "string"
+                typeof node.expression.value === "string" &&
+                !astUtils.isParenthesised(sourceCode, node.expression)
             );
         }
 
         /**
-         * Checks whether or not a given node is a part of directive prologues.
-         * See also: http://www.ecma-international.org/ecma-262/6.0/#sec-directive-prologues-and-the-use-strict-directive
-         * @param {ASTNode} node - A node to check.
-         * @returns {boolean} Whether or not the node is a part of directive prologues.
+         * Checks whether a specified node is either part of, or immediately follows a (possibly empty) directive prologue.
+         * @see {@link http://www.ecma-international.org/ecma-262/6.0/#sec-directive-prologues-and-the-use-strict-directive}
+         * @param {ASTNode} node A node to check.
+         * @returns {boolean} Whether a specified node is either part of, or immediately follows a (possibly empty) directive prologue.
          * @private
          */
-        function isPartOfDirectivePrologue(node) {
-            const block = node.parent.parent;
-
-            if (block.type !== "Program" && (block.type !== "BlockStatement" || !astUtils.isFunction(block.parent))) {
+        function isExpressionInOrJustAfterDirectivePrologue(node) {
+            if (!astUtils.isTopLevelExpressionStatement(node.parent)) {
                 return false;
             }
+            const block = node.parent.parent;
 
             // Check the node is at a prologue.
             for (let i = 0; i < block.body.length; ++i) {
@@ -195,7 +205,7 @@ module.exports = {
 
         /**
          * Checks whether or not a given node is allowed as non backtick.
-         * @param {ASTNode} node - A node to check.
+         * @param {ASTNode} node A node to check.
          * @returns {boolean} Whether or not the node is allowed as non backtick.
          * @private
          */
@@ -206,23 +216,63 @@ module.exports = {
 
                 // Directive Prologues.
                 case "ExpressionStatement":
-                    return isPartOfDirectivePrologue(node);
+                    return !astUtils.isParenthesised(sourceCode, node) && isExpressionInOrJustAfterDirectivePrologue(node);
 
                 // LiteralPropertyName.
                 case "Property":
+                case "PropertyDefinition":
                 case "MethodDefinition":
                     return parent.key === node && !parent.computed;
 
                 // ModuleSpecifier.
                 case "ImportDeclaration":
                 case "ExportNamedDeclaration":
-                case "ExportAllDeclaration":
                     return parent.source === node;
+
+                // ModuleExportName or ModuleSpecifier.
+                case "ExportAllDeclaration":
+                    return parent.exported === node || parent.source === node;
+
+                // ModuleExportName.
+                case "ImportSpecifier":
+                    return parent.imported === node;
+
+                // ModuleExportName.
+                case "ExportSpecifier":
+                    return parent.local === node || parent.exported === node;
 
                 // Others don't allow.
                 default:
                     return false;
             }
+        }
+
+        /**
+         * Checks whether or not a given TemplateLiteral node is actually using any of the special features provided by template literal strings.
+         * @param {ASTNode} node A TemplateLiteral node to check.
+         * @returns {boolean} Whether or not the TemplateLiteral node is using any of the special features provided by template literal strings.
+         * @private
+         */
+        function isUsingFeatureOfTemplateLiteral(node) {
+            const hasTag = node.parent.type === "TaggedTemplateExpression" && node === node.parent.quasi;
+
+            if (hasTag) {
+                return true;
+            }
+
+            const hasStringInterpolation = node.expressions.length > 0;
+
+            if (hasStringInterpolation) {
+                return true;
+            }
+
+            const isMultilineString = node.quasis.length >= 1 && UNESCAPED_LINEBREAK_PATTERN.test(node.quasis[0].value.raw);
+
+            if (isMultilineString) {
+                return true;
+            }
+
+            return false;
         }
 
         return {
@@ -237,17 +287,26 @@ module.exports = {
                         astUtils.isSurroundedBy(rawVal, settings.quote);
 
                     if (!isValid && avoidEscape) {
-                        isValid = astUtils.isSurroundedBy(rawVal, settings.alternateQuote) && rawVal.indexOf(settings.quote) >= 0;
+                        isValid = astUtils.isSurroundedBy(rawVal, settings.alternateQuote) && rawVal.includes(settings.quote);
                     }
 
                     if (!isValid) {
                         context.report({
                             node,
-                            message: "Strings must use {{description}}.",
+                            messageId: "wrongQuotes",
                             data: {
                                 description: settings.description
                             },
                             fix(fixer) {
+                                if (quoteOption === "backtick" && astUtils.hasOctalOrNonOctalDecimalEscapeSequence(rawVal)) {
+
+                                    /*
+                                     * An octal or non-octal decimal escape sequence in a template literal would
+                                     * produce syntax error, even in non-strict mode.
+                                     */
+                                    return null;
+                                }
+
                                 return fixer.replaceText(node, settings.convert(node.raw));
                             }
                         });
@@ -257,39 +316,33 @@ module.exports = {
 
             TemplateLiteral(node) {
 
-                // If backticks are expected or it's a tagged template, then this shouldn't throw an errors
+                // Don't throw an error if backticks are expected or a template literal feature is in use.
                 if (
                     allowTemplateLiterals ||
                     quoteOption === "backtick" ||
-                    node.parent.type === "TaggedTemplateExpression" && node === node.parent.quasi
+                    isUsingFeatureOfTemplateLiteral(node)
                 ) {
                     return;
                 }
 
-                // A warning should be produced if the template literal only has one TemplateElement, and has no unescaped newlines.
-                const shouldWarn = node.quasis.length === 1 && !UNESCAPED_LINEBREAK_PATTERN.test(node.quasis[0].value.raw);
+                context.report({
+                    node,
+                    messageId: "wrongQuotes",
+                    data: {
+                        description: settings.description
+                    },
+                    fix(fixer) {
+                        if (astUtils.isTopLevelExpressionStatement(node.parent) && !astUtils.isParenthesised(sourceCode, node)) {
 
-                if (shouldWarn) {
-                    context.report({
-                        node,
-                        message: "Strings must use {{description}}.",
-                        data: {
-                            description: settings.description
-                        },
-                        fix(fixer) {
-                            if (isPartOfDirectivePrologue(node)) {
-
-                                /*
-                                 * TemplateLiterals in a directive prologue aren't actually directives, but if they're
-                                 * in the directive prologue, then fixing them might turn them into directives and change
-                                 * the behavior of the code.
-                                 */
-                                return null;
-                            }
-                            return fixer.replaceText(node, settings.convert(sourceCode.getText(node)));
+                            /*
+                             * TemplateLiterals aren't actually directives, but fixing them might turn
+                             * them into directives and change the behavior of the code.
+                             */
+                            return null;
                         }
-                    });
-                }
+                        return fixer.replaceText(node, settings.convert(sourceCode.getText(node)));
+                    }
+                });
             }
         };
 

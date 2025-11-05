@@ -2,23 +2,35 @@
  * @fileoverview Forbid certain elements
  * @author Kenneth Chung
  */
+
 'use strict';
 
-const has = require('has');
+const has = require('hasown');
 const docsUrl = require('../util/docsUrl');
+const getText = require('../util/eslint').getText;
+const isCreateElement = require('../util/isCreateElement');
+const report = require('../util/report');
 
 // ------------------------------------------------------------------------------
 // Rule Definition
 // ------------------------------------------------------------------------------
 
+const messages = {
+  forbiddenElement: '<{{element}}> is forbidden',
+  forbiddenElement_message: '<{{element}}> is forbidden, {{message}}',
+};
+
+/** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
     docs: {
-      description: 'Forbid certain elements',
+      description: 'Disallow certain elements',
       category: 'Best Practices',
       recommended: false,
-      url: docsUrl('forbid-elements')
+      url: docsUrl('forbid-elements'),
     },
+
+    messages,
 
     schema: [{
       type: 'object',
@@ -27,88 +39,81 @@ module.exports = {
           type: 'array',
           items: {
             anyOf: [
-              {type: 'string'},
+              { type: 'string' },
               {
                 type: 'object',
                 properties: {
-                  element: {type: 'string'},
-                  message: {type: 'string'}
+                  element: { type: 'string' },
+                  message: { type: 'string' },
                 },
                 required: ['element'],
-                additionalProperties: false
-              }
-            ]
-          }
-        }
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
       },
-      additionalProperties: false
-    }]
+      additionalProperties: false,
+    }],
   },
 
-  create: function(context) {
-    const sourceCode = context.getSourceCode();
+  create(context) {
     const configuration = context.options[0] || {};
     const forbidConfiguration = configuration.forbid || [];
 
+    /** @type {Record<string, { element: string, message?: string }>} */
     const indexedForbidConfigs = {};
 
-    forbidConfiguration.forEach(item => {
+    forbidConfiguration.forEach((item) => {
       if (typeof item === 'string') {
-        indexedForbidConfigs[item] = {element: item};
+        indexedForbidConfigs[item] = { element: item };
       } else {
         indexedForbidConfigs[item.element] = item;
       }
     });
 
-    function errorMessageForElement(name) {
-      const message = `<${name}> is forbidden`;
-      const additionalMessage = indexedForbidConfigs[name].message;
-
-      if (additionalMessage) {
-        return `${message}, ${additionalMessage}`;
-      }
-
-      return message;
-    }
-
-    function isValidCreateElement(node) {
-      return node.callee
-        && node.callee.type === 'MemberExpression'
-        && node.callee.object.name === 'React'
-        && node.callee.property.name === 'createElement'
-        && node.arguments.length > 0;
-    }
-
     function reportIfForbidden(element, node) {
       if (has(indexedForbidConfigs, element)) {
-        context.report({
-          node: node,
-          message: errorMessageForElement(element)
-        });
+        const message = indexedForbidConfigs[element].message;
+
+        report(
+          context,
+          message ? messages.forbiddenElement_message : messages.forbiddenElement,
+          message ? 'forbiddenElement_message' : 'forbiddenElement',
+          {
+            node,
+            data: {
+              element,
+              message,
+            },
+          }
+        );
       }
     }
 
     return {
-      JSXOpeningElement: function(node) {
-        reportIfForbidden(sourceCode.getText(node.name), node.name);
+      JSXOpeningElement(node) {
+        reportIfForbidden(getText(context, node.name), node.name);
       },
 
-      CallExpression: function(node) {
-        if (!isValidCreateElement(node)) {
+      CallExpression(node) {
+        if (!isCreateElement(context, node)) {
           return;
         }
 
         const argument = node.arguments[0];
-        const argType = argument.type;
-
-        if (argType === 'Identifier' && /^[A-Z_]/.test(argument.name)) {
-          reportIfForbidden(argument.name, argument);
-        } else if (argType === 'Literal' && /^[a-z][^\.]*$/.test(argument.value)) {
-          reportIfForbidden(argument.value, argument);
-        } else if (argType === 'MemberExpression') {
-          reportIfForbidden(sourceCode.getText(argument), argument);
+        if (!argument) {
+          return;
         }
-      }
+
+        if (argument.type === 'Identifier' && /^[A-Z_]/.test(argument.name)) {
+          reportIfForbidden(argument.name, argument);
+        } else if (argument.type === 'Literal' && /^[a-z][^.]*$/.test(String(argument.value))) {
+          reportIfForbidden(argument.value, argument);
+        } else if (argument.type === 'MemberExpression') {
+          reportIfForbidden(getText(context, argument), argument);
+        }
+      },
     };
-  }
+  },
 };

@@ -1,31 +1,43 @@
 /**
  * @fileoverview Disallows unnecessary `return await`
  * @author Jordan Harband
+ * @deprecated in ESLint v8.46.0
  */
 "use strict";
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
-const message = "Redundant use of `await` on a return value.";
-
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
-        docs: {
-            description: "disallow unnecessary `return await`",
-            category: "Best Practices",
+        hasSuggestions: true,
+        type: "suggestion",
 
-            // TODO: set to true
+        docs: {
+            description: "Disallow unnecessary `return await`",
+
             recommended: false,
 
-            url: "https://eslint.org/docs/rules/no-return-await"
+            url: "https://eslint.org/docs/latest/rules/no-return-await"
         },
+
         fixable: null,
+
+        deprecated: true,
+
+        replacedBy: [],
+
         schema: [
-        ]
+        ],
+
+        messages: {
+            removeAwait: "Remove redundant `await`.",
+            redundantUseOfAwait: "Redundant use of `await` on a return value."
+        }
     },
 
     create(context) {
@@ -37,9 +49,34 @@ module.exports = {
          */
         function reportUnnecessaryAwait(node) {
             context.report({
-                node: context.getSourceCode().getFirstToken(node),
+                node: context.sourceCode.getFirstToken(node),
                 loc: node.loc,
-                message
+                messageId: "redundantUseOfAwait",
+                suggest: [
+                    {
+                        messageId: "removeAwait",
+                        fix(fixer) {
+                            const sourceCode = context.sourceCode;
+                            const [awaitToken, tokenAfterAwait] = sourceCode.getFirstTokens(node, 2);
+
+                            const areAwaitAndAwaitedExpressionOnTheSameLine = awaitToken.loc.start.line === tokenAfterAwait.loc.start.line;
+
+                            if (!areAwaitAndAwaitedExpressionOnTheSameLine) {
+                                return null;
+                            }
+
+                            const [startOfAwait, endOfAwait] = awaitToken.range;
+
+                            const characterAfterAwait = sourceCode.text[endOfAwait];
+                            const trimLength = characterAfterAwait === " " ? 1 : 0;
+
+                            const range = [startOfAwait, endOfAwait + trimLength];
+
+                            return fixer.removeRange(range);
+                        }
+                    }
+                ]
+
             });
         }
 

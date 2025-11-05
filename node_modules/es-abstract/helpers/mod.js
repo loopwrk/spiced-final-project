@@ -1,4 +1,4 @@
-module.exports = function mod(number, modulo) {
-	var remain = number % modulo;
-	return Math.floor(remain >= 0 ? remain : remain + modulo);
-};
+'use strict';
+
+// TODO, semver-major: delete
+module.exports = require('math-intrinsics/mod');

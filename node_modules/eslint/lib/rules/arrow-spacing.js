@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to define spacing before/after arrow function's arrow.
  * @author Jxck
+ * @deprecated in ESLint v8.53.0
  */
 "use strict";
 
@@ -8,19 +9,23 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce consistent spacing before and after the arrow in arrow functions",
-            category: "ECMAScript 6",
+            description: "Enforce consistent spacing before and after the arrow in arrow functions",
             recommended: false,
-            url: "https://eslint.org/docs/rules/arrow-spacing"
+            url: "https://eslint.org/docs/latest/rules/arrow-spacing"
         },
 
         fixable: "whitespace",
@@ -30,10 +35,12 @@ module.exports = {
                 type: "object",
                 properties: {
                     before: {
-                        type: "boolean"
+                        type: "boolean",
+                        default: true
                     },
                     after: {
-                        type: "boolean"
+                        type: "boolean",
+                        default: true
                     }
                 },
                 additionalProperties: false
@@ -52,13 +59,12 @@ module.exports = {
     create(context) {
 
         // merge rules with default
-        const rule = { before: true, after: true },
-            option = context.options[0] || {};
+        const rule = Object.assign({}, context.options[0]);
 
-        rule.before = option.before !== false;
-        rule.after = option.after !== false;
+        rule.before = rule.before !== false;
+        rule.after = rule.after !== false;
 
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         /**
          * Get tokens of arrow(`=>`) and before/after arrow.

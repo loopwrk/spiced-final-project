@@ -5,9 +5,10 @@ const compression = require("compression");
 app.use(compression());
 
 if (process.env.NODE_ENV != "production") {
+    const { createProxyMiddleware } = require("http-proxy-middleware");
     app.use(
         "/bundle.js",
-        require("http-proxy-middleware")({
+        createProxyMiddleware({
             target: "http://localhost:8081/"
         })
     );

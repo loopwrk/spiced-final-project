@@ -1,3 +1,4 @@
-module.exports = function sign(number) {
-	return number >= 0 ? 1 : -1;
-};
+'use strict';
+
+// TODO, semver-major: delete
+module.exports = require('math-intrinsics/sign');

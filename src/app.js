@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sampler from "./sampler";
 import MusicPlayers from "./musicplayers";
 
-import Tone from "tone";
+import * as Tone from "tone";
 
 export default function App() {
     const [showModalValue, setShowModalValue] = useState(false);

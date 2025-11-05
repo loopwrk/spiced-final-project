@@ -1,25 +1,32 @@
 /**
  * @fileoverview Comma style - enforces comma styles of two types: last and first
  * @author Vignesh Anand aka vegetableman
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce consistent comma style",
-            category: "Stylistic Issues",
+            description: "Enforce consistent comma style",
             recommended: false,
-            url: "https://eslint.org/docs/rules/comma-style"
+            url: "https://eslint.org/docs/latest/rules/comma-style"
         },
+
         fixable: "code",
+
         schema: [
             {
                 enum: ["first", "last"]
@@ -37,6 +44,7 @@ module.exports = {
                 additionalProperties: false
             }
         ],
+
         messages: {
             unexpectedLineBeforeAndAfterComma: "Bad line breaking before and after ','.",
             expectedCommaFirst: "',' should be placed first.",
@@ -46,7 +54,7 @@ module.exports = {
 
     create(context) {
         const style = context.options[0] || "last",
-            sourceCode = context.getSourceCode();
+            sourceCode = context.sourceCode;
         const exceptions = {
             ArrayPattern: true,
             ArrowFunctionExpression: true,
@@ -58,7 +66,7 @@ module.exports = {
             NewExpression: true
         };
 
-        if (context.options.length === 2 && context.options[1].hasOwnProperty("exceptions")) {
+        if (context.options.length === 2 && Object.prototype.hasOwnProperty.call(context.options[1], "exceptions")) {
             const keys = Object.keys(context.options[1].exceptions);
 
             for (let i = 0; i < keys.length; i++) {
@@ -80,7 +88,7 @@ module.exports = {
         function getReplacedText(styleType, text) {
             switch (styleType) {
                 case "between":
-                    return `,${text.replace("\n", "")}`;
+                    return `,${text.replace(astUtils.LINEBREAK_MATCHER, "")}`;
 
                 case "first":
                     return `${text},`;
@@ -133,21 +141,24 @@ module.exports = {
             } else if (!astUtils.isTokenOnSameLine(commaToken, currentItemToken) &&
                     !astUtils.isTokenOnSameLine(previousItemToken, commaToken)) {
 
+                const comment = sourceCode.getCommentsAfter(commaToken)[0];
+                const styleType = comment && comment.type === "Block" && astUtils.isTokenOnSameLine(commaToken, comment)
+                    ? style
+                    : "between";
+
                 // lone comma
                 context.report({
                     node: reportItem,
-                    loc: {
-                        line: commaToken.loc.end.line,
-                        column: commaToken.loc.start.column
-                    },
+                    loc: commaToken.loc,
                     messageId: "unexpectedLineBeforeAndAfterComma",
-                    fix: getFixerFunction("between", previousItemToken, commaToken, currentItemToken)
+                    fix: getFixerFunction(styleType, previousItemToken, commaToken, currentItemToken)
                 });
 
             } else if (style === "first" && !astUtils.isTokenOnSameLine(commaToken, currentItemToken)) {
 
                 context.report({
                     node: reportItem,
+                    loc: commaToken.loc,
                     messageId: "expectedCommaFirst",
                     fix: getFixerFunction(style, previousItemToken, commaToken, currentItemToken)
                 });
@@ -156,10 +167,7 @@ module.exports = {
 
                 context.report({
                     node: reportItem,
-                    loc: {
-                        line: commaToken.loc.end.line,
-                        column: commaToken.loc.end.column
-                    },
+                    loc: commaToken.loc,
                     messageId: "expectedCommaLast",
                     fix: getFixerFunction(style, previousItemToken, commaToken, currentItemToken)
                 });
@@ -185,13 +193,7 @@ module.exports = {
                 items.forEach(item => {
                     const commaToken = item ? sourceCode.getTokenBefore(item) : previousItemToken,
                         currentItemToken = item ? sourceCode.getFirstToken(item) : sourceCode.getTokenAfter(commaToken),
-                        reportItem = item || currentItemToken,
-                        tokenBeforeComma = sourceCode.getTokenBefore(commaToken);
-
-                    // Check if previous token is wrapped in parentheses
-                    if (tokenBeforeComma && astUtils.isClosingParenToken(tokenBeforeComma)) {
-                        previousItemToken = tokenBeforeComma;
-                    }
+                        reportItem = item || currentItemToken;
 
                     /*
                      * This works by comparing three token locations:
@@ -208,8 +210,7 @@ module.exports = {
                      * they are always valid regardless of an undefined item.
                      */
                     if (astUtils.isCommaToken(commaToken)) {
-                        validateCommaItemSpacing(previousItemToken, commaToken,
-                            currentItemToken, reportItem);
+                        validateCommaItemSpacing(previousItemToken, commaToken, currentItemToken, reportItem);
                     }
 
                     if (item) {
@@ -218,6 +219,8 @@ module.exports = {
                         previousItemToken = tokenAfterItem
                             ? sourceCode.getTokenBefore(tokenAfterItem)
                             : sourceCode.ast.tokens[sourceCode.ast.tokens.length - 1];
+                    } else {
+                        previousItemToken = currentItemToken;
                     }
                 });
 

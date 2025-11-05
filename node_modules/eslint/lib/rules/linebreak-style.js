@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to enforce a single linebreak style.
  * @author Erik Mueller
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -9,19 +10,23 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-const astUtils = require("../ast-utils");
+const astUtils = require("./utils/ast-utils");
 
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "enforce consistent linebreak style",
-            category: "Stylistic Issues",
+            description: "Enforce consistent linebreak style",
             recommended: false,
-            url: "https://eslint.org/docs/rules/linebreak-style"
+            url: "https://eslint.org/docs/latest/rules/linebreak-style"
         },
 
         fixable: "whitespace",
@@ -30,15 +35,15 @@ module.exports = {
             {
                 enum: ["unix", "windows"]
             }
-        ]
+        ],
+        messages: {
+            expectedLF: "Expected linebreaks to be 'LF' but found 'CRLF'.",
+            expectedCRLF: "Expected linebreaks to be 'CRLF' but found 'LF'."
+        }
     },
 
     create(context) {
-
-        const EXPECTED_LF_MSG = "Expected linebreaks to be 'LF' but found 'CRLF'.",
-            EXPECTED_CRLF_MSG = "Expected linebreaks to be 'CRLF' but found 'LF'.";
-
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         //--------------------------------------------------------------------------
         // Helpers
@@ -62,7 +67,7 @@ module.exports = {
         //--------------------------------------------------------------------------
 
         return {
-            Program: function checkForlinebreakStyle(node) {
+            Program: function checkForLinebreakStyle(node) {
                 const linebreakStyle = context.options[0] || "unix",
                     expectedLF = linebreakStyle === "unix",
                     expectedLFChars = expectedLF ? "\n" : "\r\n",
@@ -84,10 +89,16 @@ module.exports = {
                     context.report({
                         node,
                         loc: {
-                            line: i,
-                            column: sourceCode.lines[i - 1].length
+                            start: {
+                                line: i,
+                                column: sourceCode.lines[i - 1].length
+                            },
+                            end: {
+                                line: i + 1,
+                                column: 0
+                            }
                         },
-                        message: expectedLF ? EXPECTED_LF_MSG : EXPECTED_CRLF_MSG,
+                        messageId: expectedLF ? "expectedLF" : "expectedCRLF",
                         fix: createFix(range, expectedLFChars)
                     });
                 }

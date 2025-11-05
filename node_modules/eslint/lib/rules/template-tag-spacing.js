@@ -1,6 +1,7 @@
 /**
  * @fileoverview Rule to check spacing between template tags and their literals
  * @author Jonathan Wilsson
+ * @deprecated in ESLint v8.53.0
  */
 
 "use strict";
@@ -9,25 +10,33 @@
 // Rule Definition
 //------------------------------------------------------------------------------
 
+/** @type {import('../shared/types').Rule} */
 module.exports = {
     meta: {
+        deprecated: true,
+        replacedBy: [],
+        type: "layout",
+
         docs: {
-            description: "require or disallow spacing between template tags and their literals",
-            category: "Stylistic Issues",
+            description: "Require or disallow spacing between template tags and their literals",
             recommended: false,
-            url: "https://eslint.org/docs/rules/template-tag-spacing"
+            url: "https://eslint.org/docs/latest/rules/template-tag-spacing"
         },
 
         fixable: "whitespace",
 
         schema: [
             { enum: ["always", "never"] }
-        ]
+        ],
+        messages: {
+            unexpected: "Unexpected space between template tag and template literal.",
+            missing: "Missing space between template tag and template literal."
+        }
     },
 
     create(context) {
         const never = context.options[0] !== "always";
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
 
         /**
          * Check if a space is present between a template tag and its literal
@@ -43,8 +52,11 @@ module.exports = {
             if (never && hasWhitespace) {
                 context.report({
                     node,
-                    loc: tagToken.loc.start,
-                    message: "Unexpected space between template tag and template literal.",
+                    loc: {
+                        start: tagToken.loc.end,
+                        end: literalToken.loc.start
+                    },
+                    messageId: "unexpected",
                     fix(fixer) {
                         const comments = sourceCode.getCommentsBefore(node.quasi);
 
@@ -62,8 +74,11 @@ module.exports = {
             } else if (!never && !hasWhitespace) {
                 context.report({
                     node,
-                    loc: tagToken.loc.start,
-                    message: "Missing space between template tag and template literal.",
+                    loc: {
+                        start: node.loc.start,
+                        end: literalToken.loc.start
+                    },
+                    messageId: "missing",
                     fix(fixer) {
                         return fixer.insertTextAfter(tagToken, " ");
                     }
